@@ -16,7 +16,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 脚本从本仓库最新正式 Release 下载完整 ZIP 和 SHA256SUMS，校验后再安装 CLI 和 skill。包内包含 Node.js、sharp、FFmpeg；不需要预装这些运行库、npm、Python 或管理员权限。下载需要网络。
 
-固定版本可加 `-Version v0.7.1`。如果 GitHub API 限流，固定版本可跳过 latest API 查询。
+固定版本可加 `-Version v0.7.1`。默认 latest 通过 GitHub 的公开 Release 重定向解析，不需要 GitHub 登录或 API 配额。
 
 没有 Git：在 [Releases](https://github.com/hjm-jim/gsp-motion/releases/latest) 下载 `gsp-motion-<版本>-win-x64.zip` 和 SHA256SUMS，运行 `Get-FileHash <ZIP路径> -Algorithm SHA256` 比对，解压后运行包内的 `install.ps1`：
 

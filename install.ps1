@@ -12,8 +12,12 @@ if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { throw 'Reposito
 [Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $headers=@{'User-Agent'='gsp-motion-installer'}
 if ($Version -eq 'latest') {
-  $release=Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/latest" -Headers $headers
-  $Version=$release.tag_name
+  # Follow the public release redirect; no API token or API quota is required.
+  $release=Invoke-WebRequest -UseBasicParsing -Method Head -Uri "https://github.com/$Repository/releases/latest" -Headers $headers
+  $releaseUri=$release.BaseResponse.ResponseUri
+  if (!$releaseUri) { $releaseUri=$release.BaseResponse.RequestMessage.RequestUri }
+  if (!$releaseUri) { throw 'Cannot resolve latest release; pass -Version v0.7.1.' }
+  $Version=[Uri]::UnescapeDataString(($releaseUri.AbsolutePath -split '/')[-1])
 }
 if ($Version -notmatch '^v?\d+\.\d+\.\d+$') { throw 'Version must be latest or a version such as v0.7.1.' }
 $number=$Version.TrimStart('v')
