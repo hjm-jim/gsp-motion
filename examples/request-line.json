@@ -1,0 +1,13 @@
+{
+  "input": "./demo1_triangle_line.gsp",
+  "output": "./line-black.mp4",
+  "point": "A",
+  "from": -50,
+  "to": 50,
+  "background": "black",
+  "labels": true,
+  "duration": 8,
+  "fps": 30,
+  "width": 1280,
+  "height": 720
+}

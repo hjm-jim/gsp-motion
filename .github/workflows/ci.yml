@@ -1,0 +1,29 @@
+name: CLI checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        node: ['20', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: Validate PowerShell installer syntax
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path install.ps1,scripts/*.ps1 | ForEach-Object {
+            $errors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$null,[ref]$errors) | Out-Null
+            if ($errors) { throw ($errors | Out-String) }
+          }

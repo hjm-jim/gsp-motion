@@ -1,0 +1,12 @@
+{
+  "name": "gsp-motion-cli",
+  "version": "0.7.1",
+  "license": "MIT",
+  "repository": {"type":"git","url":"https://github.com/hjm-jim/gsp-motion.git"},
+  "private": true,
+  "description": "Deterministic dependency-driven GSP geometry animation CLI",
+  "bin": {"gsp-motion": "cli.cjs"},
+  "scripts": {"test": "node --test test.cjs test-cli.cjs test-effects.cjs test-visibility.cjs test-label-arc.cjs", "demo": "node cli.cjs animate examples/demo1_triangle_circumcircle.gsp --point A --from -30 --to 30 --concyclic A,B,C --fixed 1 --out output --frames --mp4", "demo:line": "node cli.cjs animate examples/demo1_triangle_line.gsp --point A --from -50 --to 50 --fixed B,C --out output-line --frames --mp4"},
+  "engines": {"node": ">=20.9"},
+  "optionalDependencies": {"sharp": "0.35.5"}
+}

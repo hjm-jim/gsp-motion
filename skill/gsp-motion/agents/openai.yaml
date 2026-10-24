@@ -1,0 +1,4 @@
+interface:
+  display_name: "GSP 几何动画"
+  short_description: "解析 GSP 自动生成图形信息，按运动、高亮与显隐需求导出纯净 MP4"
+  default_prompt: "使用 $gsp-motion 解析 GSP，读取自动生成的图形信息，再按我的需求导出纯净 MP4。"

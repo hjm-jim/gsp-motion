@@ -1,0 +1,5 @@
+[
+  {"type":"line","objects":[7,8],"start":0,"end":3,"enter":0.65,"exit":0.4,"width":7},
+  {"type":"angle","points":["B","A","C"],"start":2.4,"end":5.4,"enter":0.65,"exit":0.4,"radius":44,"fillOpacity":0.2},
+  {"type":"triangle","points":["A","B","C"],"start":4.8,"end":8,"enter":0.65,"exit":0.4,"fillOpacity":0.26}
+]

@@ -1,0 +1,14 @@
+{
+  "input":"./demo1_triangle_circumcircle.gsp",
+  "output":"../visibility-output/circle-white.mp4",
+  "mode":"static",
+  "duration":8,
+  "fps":30,
+  "background":"white",
+  "visibility":[
+    {"at":0,"hide":[7,8]},
+    {"at":2,"show":[7]},
+    {"at":4,"show":[8]},
+    {"at":6,"hide":[7,8]}
+  ]
+}
