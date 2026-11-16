@@ -10,7 +10,7 @@ if(!ffmpeg||!fs.existsSync(ffmpeg))throw Error('FFmpeg executable not found');
 const encoders=spawnSync(ffmpeg,['-hide_banner','-encoders'],{encoding:'utf8',windowsHide:true});
 if(encoders.status!==0||!encoders.stdout.includes('libx264'))throw Error('FFmpeg must provide the libx264 encoder.');
 for(const d of ['tool','runtime','node_modules','skill','examples','licenses'])fs.mkdirSync(path.join(dest,d),{recursive:true});
-for(const f of ['cli.cjs','render.cjs','motion.cjs','effects.cjs','label-layout.cjs','visibility.cjs','info.cjs','geometry-core.cjs','package.json'])fs.copyFileSync(path.join(root,f),path.join(dest,'tool',f));
+for(const f of ['cli.cjs','render.cjs','motion.cjs','effects.cjs','styles.cjs','label-layout.cjs','visibility.cjs','info.cjs','geometry-core.cjs','package.json'])fs.copyFileSync(path.join(root,f),path.join(dest,'tool',f));
 fs.copyFileSync(process.execPath,path.join(dest,'runtime','node.exe'));
 const ffdir=path.dirname(ffmpeg);
 for(const f of fs.readdirSync(ffdir))if(/\.dll$/i.test(f)||['ffmpeg.exe','ffprobe.exe'].includes(f.toLowerCase()))fs.copyFileSync(path.join(ffdir,f),path.join(dest,'runtime',f));

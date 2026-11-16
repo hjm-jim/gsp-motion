@@ -16,7 +16,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 脚本从本仓库最新正式 Release 下载完整 ZIP 和 SHA256SUMS，校验后再安装 CLI 和 skill。包内包含 Node.js、sharp、FFmpeg；不需要预装这些运行库、npm、Python 或管理员权限。下载需要网络。
 
-固定版本可加 `-Version v0.7.1`。默认 latest 通过 GitHub 的公开 Release 重定向解析，不需要 GitHub 登录或 API 配额。
+固定版本可加 `-Version v0.11.1`。默认 latest 通过 GitHub 的公开 Release 重定向解析，不需要 GitHub 登录或 API 配额。
 
 没有 Git：在 [Releases](https://github.com/hjm-jim/gsp-motion/releases/latest) 下载 `gsp-motion-<版本>-win-x64.zip` 和 SHA256SUMS，运行 `Get-FileHash <ZIP路径> -Algorithm SHA256` 比对，解压后运行包内的 `install.ps1`：
 
@@ -41,12 +41,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 & "$env:USERPROFILE\.local\bin\gsp-motion.exe" doctor --json
 ```
 
-版本应为 0.7.1 或更高，doctor 应返回 `ok:true`。CLI 可由任何程序通过进程参数数组调用；不依赖 Codex 才能运行。AI 客户端需要支持相应 skill 目录；安装 skill 后新开会话以刷新发现。
+版本应为 0.11.1 或更高，doctor 应返回 `ok:true`。CLI 可由任何程序通过进程参数数组调用；不依赖 Codex 才能运行。AI 客户端需要支持相应 skill 目录；安装 skill 后新开会话以刷新发现。
 
 所有安装器支持 `-AppRoot`、`-BinRoot`、`-SkillRoot` 指定目录，以及 `-NoPath` 不修改用户 PATH。例如用于独立验证：
 
 ```powershell
-.\install.ps1 -Version v0.7.1 -AppRoot C:\tools\gsp\app -BinRoot C:\tools\gsp\bin -SkillRoot C:\tools\gsp\skill -NoPath
+.\install.ps1 -Version v0.11.1 -AppRoot C:\tools\gsp\app -BinRoot C:\tools\gsp\bin -SkillRoot C:\tools\gsp\skill -NoPath
 ```
 
 安装会更新目标目录中的同名程序与 skill 文件。更新时重新运行同一安装命令即可；不要在程序安装目录里保存自己的 GSP 或视频。下载失败或校验不符时不会调用本地安装器。

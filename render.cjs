@@ -27,7 +27,7 @@ async function renderMp4(scene,options,getSharp) {
     fs.mkdirSync(path.dirname(output),{recursive:true});
     fs.copyFileSync(video,output);report.ok=true;
     if(options.report)fs.writeFileSync(path.resolve(options.report),JSON.stringify(report,null,2));
-    return {...report,infoMd:scene.infoMd,sourceSha256:scene.sourceSha256};
+    return {...report,infoMd:scene.infoMd,sourceSha256:scene.sourceSha256,styleWarnings:scene.styleWarnings??[]};
   } finally {
     // 只清理由本次 mkdtemp 创建的临时目录；不删除用户的输出或帧文件夹。
     const resolved=path.resolve(temp);

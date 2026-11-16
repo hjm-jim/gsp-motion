@@ -78,3 +78,8 @@ node cli.cjs animate examples/demo1_triangle_circumcircle.gsp --point A --effect
 `effects-output/circle-white.mp4`、`circle-black.mp4`：8 秒，1280×720，30 fps，240 帧，无音频。`effects-contact-sheet.png` 是实际视频抽帧，依次展示线、角、白底三角形和黑底三角形。
 
 0.4 功能开发时的验证：26 项自动测试通过；离线 HTML 检查通过，任意跳帧结果与 CLI 一致、播放到终点停止；两份视频经 FFprobe 核验规格。该记录是历史验证；0.6 安装轮次按用户要求未再生成测试视频。
+## 点、圆高亮与意图边界（0.9+）
+
+point / circle 使用 objects 数组，分别为点添加加粗外圈、为圆添加加粗描圈；width 默认 6px，支持现有起止、渐入渐出、颜色和透明度参数。只作用于当时可见对象，不自动 show，不影响其他图形；hide 同时移除对应叠加层。效果结束保留基础对象当前显隐。
+
+操作前先读 [高亮/显隐/初始显示指南](skill/gsp-motion/references/intent.md)，接口见 [完整强调配置](skill/gsp-motion/references/effects.md)。仅高亮时使用 mode:static；point 驱动参数与 type:point 高亮不可混淆。初始显示用 visibility 的 at:0，不增加新的请求字段。

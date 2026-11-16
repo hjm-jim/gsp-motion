@@ -3,6 +3,7 @@
 const G=typeof module!=='undefined'?require('./geometry-core.cjs'):root.Geometry;
 const V=typeof module!=='undefined'?require('./visibility.cjs'):root.Visibility;
 const L=typeof module!=='undefined'?require('./label-layout.cjs'):root.LabelLayout;
+const S=typeof module!=='undefined'?require('./styles.cjs'):root.Styles;
 const lineTypes=new Set(['Segment','Line','Ray','PerpendicularLine','ParallelLine','AngleBisector']);
 const common=['type','start','end','enter','exit','color','opacity','width','fillOpacity'];
 function compile(spec,objects,duration,resolve){
@@ -11,8 +12,8 @@ function compile(spec,objects,duration,resolve){
   return spec.map((raw,index)=>{
     const fail=s=>{throw Error(`effects[${index}]: ${s}`);};
     if(!raw||typeof raw!=='object'||Array.isArray(raw))fail('必须是对象');
-    if(!['line','angle','triangle'].includes(raw.type))fail('type 必须为 line、angle 或 triangle');
-    const allowed=new Set([...common,...(raw.type==='line'?['objects','style','side','bend']:['points']),...(raw.type==='angle'?['radius']:[])]);
+    if(!['line','point','circle','angle','triangle'].includes(raw.type))fail('type 必须为 line、point、circle、angle 或 triangle');
+    const allowed=new Set([...common,...(['line','point','circle'].includes(raw.type)?['objects']:['points']),...(raw.type==='line'?['style','side','bend']:[]),...(raw.type==='angle'?['radius']:[])]);
     for(const key of Object.keys(raw))if(!allowed.has(key))fail('未知字段 '+key);
     const number=(key,fallback,min,max)=>{
       const value=raw[key]===undefined?fallback:raw[key];
@@ -25,8 +26,12 @@ function compile(spec,objects,duration,resolve){
     const exit=number('exit',Math.min(.4,(end-start)/2),0,end-start);
     if(enter+exit>end-start+1e-10)fail('enter + exit 不能超过效果持续时间');
     if(raw.color!==undefined && (typeof raw.color!=='string'||!/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(raw.color)))fail('color 必须是 #RGB 或 #RRGGBB');
-    const e={type:raw.type,start,end,enter,exit,color:raw.color,opacity:number('opacity',1,0,1),width:number('width',raw.type==='line'?6:4,1,40),fillOpacity:number('fillOpacity',raw.type==='triangle'?.24:.16,0,1)};
-    if(raw.type==='line'){
+    const e={type:raw.type,start,end,enter,exit,color:raw.color,opacity:number('opacity',1,0,1),width:number('width',['line','point','circle'].includes(raw.type)?6:4,1,40),fillOpacity:number('fillOpacity',raw.type==='triangle'?.24:.16,0,1)};
+    if(['point','circle'].includes(raw.type)){
+      if(!Array.isArray(raw.objects)||!raw.objects.length)fail('objects 需要一个或多个对象标签/编号');
+      e.objects=[...new Set(raw.objects.map(id=>resolve(objects,id).index))];
+      if(e.objects.some(id=>raw.type==='point'?!G.POINT_TYPES.has(resolve(objects,id).name):resolve(objects,id).name!=='Circle'))fail(raw.type==='point'?'objects 只能引用点对象':'objects 只能引用 Circle 圆对象');
+    }else if(raw.type==='line'){
       if(!Array.isArray(raw.objects)||!raw.objects.length)fail('objects 需要一个或多个直线型对象的标签/编号');
       e.objects=[...new Set(raw.objects.map(id=>resolve(objects,id).index))];
       if(e.objects.some(id=>!lineTypes.has(resolve(objects,id).name)))fail('objects 只能引用线段、直线、射线等直线型对象');
@@ -73,7 +78,7 @@ function extentPoints(model,frame){
   return result;
 }
 function planArcs(model,frames,pos,bounds){
-  const samples=frames.map(frame=>({frame,obstacles:L.geometry(frame.objects,pos,bounds,o=>V.visible(model,frame.time,o)),byId:new Map(frame.objects.map(o=>[o.index,o]))}));
+  const samples=frames.map(frame=>({frame,obstacles:L.geometry(frame.objects,pos,bounds,o=>V.visible(model,frame.time,o),o=>S.appearance(model,o)),byId:new Map(frame.objects.map(o=>[o.index,o]))}));
   for(const e of model.effects||[])if(e.style==='arc'){
     e.arcSides={};
     for(const id of e.objects){
@@ -102,9 +107,25 @@ function layers(model,frame,pos,bounds,obstacles){
   const validPoint=id=>{const o=byId.get(id);if(!o||o.derived?.valid===false)return null;const p=G.pointOf(o);return p?.every(Number.isFinite)?pos(p):null;};
   for(const e of model.effects||[]){
     const s=state(e,frame.time);if(!s.visible)continue;
-    const defaults=model.background==='black'?{line:'#ffe16b',angle:'#c69bff',triangle:'#42cdb0'}:{line:'#d52d32',angle:'#783bc5',triangle:'#168cbd'};
+    const defaults=model.background==='black'?{line:'#ffe16b',point:'#ffe16b',circle:'#ffe16b',angle:'#c69bff',triangle:'#42cdb0'}:{line:'#d52d32',point:'#d52d32',circle:'#d52d32',angle:'#783bc5',triangle:'#168cbd'};
     const color=e.color||defaults[e.type];
-    if(e.type==='line'){
+    if(e.type==='point'||e.type==='circle'){
+      for(const id of e.objects){
+        const o=byId.get(id);if(!o||!V.visible(model,frame.time,o)||o.derived?.valid===false)continue;
+        let center,radius,width=e.width;
+        if(e.type==='point'){
+          center=validPoint(id);if(!center)continue;
+          width*=s.reveal;radius=S.appearance(model,o).pointRadius+width/2;
+        }else{
+          const d=o.derived;if(!d?.center||!(d.radius>0))continue;
+          center=pos(d.center);radius=Math.hypot(pos([d.center[0]+d.radius,d.center[1]])[0]-center[0],0);
+        }
+        const length=2*Math.PI*radius,dash=e.type==='circle'?` stroke-dasharray="${length} ${length}" stroke-dashoffset="${length*(1-s.reveal)}"`:'';
+        strokes.push(`<circle data-effect="${e.type}" data-effect-object="${id}" cx="${center[0]}" cy="${center[1]}" r="${radius}" fill="none" stroke="${color}" stroke-width="${width}" opacity="${s.opacity}"${dash}/>`);
+        const count=Math.max(32,Math.ceil(length/5));
+        obstacles?.push({id,width,points:Array.from({length:count+1},(_,i)=>[center[0]+radius*Math.cos(2*Math.PI*i/count),center[1]+radius*Math.sin(2*Math.PI*i/count)])});
+      }
+    }else if(e.type==='line'){
       for(const id of e.objects){
         const o=byId.get(id);if(!o||!V.visible(model,frame.time,o)||o.derived?.valid===false)continue;
         let ends=G.endpointsOf(o);if(!ends)continue;

@@ -1,5 +1,20 @@
 # 动态强调（0.4+）
 
+意图边界先读 [意图到操作](intent.md)。高亮不改变显隐：只画当时可见目标的额外强调层，不自动 show 或隐藏其他图形。高亮结束后基础对象继续保持原有可见性。显示隐藏目标要用独立 visibility 事件；初始画面用 at:0。
+
+## 点与圆高亮（0.9+）
+
+```json
+[
+  {"type":"point","objects":["A","B"],"start":1,"end":5,"width":6},
+  {"type":"circle","objects":[3],"start":1,"end":5,"width":8}
+]
+```
+
+point.objects 接受一个或多个已解析点的编号/唯一原始标签，添加渐显加粗外圈；circle.objects 只接受 Circle 圆，沿圆周描绘加粗圈线。都跟随几何、支持 color/opacity/start/end/enter/exit/width；width 默认 6px，范围 1..40。保持基础样式和依赖，标签避让包含高亮外圈；隐藏对象时对应高亮同步消失。点高亮不是驱动点参数 point，圆高亮不是 triangle 填色。单独高亮无需运动，使用 mode:static。
+
+对象在效果开始前已隐藏时，不会因为高亮而显示。再次 show 只在效果原时间窗内继续，不重置入场。end 时效果移除，基础对象的显隐不变；需要初帧有高亮时 enter:0。角标和三角形填色仍为独立标记，隐藏某个构造点不等于关闭这些标记。
+
 需求 JSON 支持 `effects` 数组；CLI 可通过 `--effects effects.json` 读取单独的效果数组。多个条目使用相同或重叠起止时间即可一并高亮。每个条目独立配置颜色与动画时长；不要把多个效果强制串行。
 
 ```json

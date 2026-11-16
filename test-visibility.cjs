@@ -53,7 +53,7 @@ test('运动模式也支持显隐，但不改变原有运动及依赖重算',()=
 test('短时间显示窗口也计入固定镜头，不因原文件隐藏而跑出画面',()=>{
   const s=structuredClone(scene);s.objects.push({index:99,name:'Point',dependencies:[],coordinates:[9000,9000],hidden:true});
   const m=M.prepare(s,{mode:'static',visibility:[{at:1.01,show:[99]},{at:1.02,hide:[99]}]});
-  assert.ok(m.bounds.x+m.bounds.width>9000);assert.ok(m.bounds.y+m.bounds.height>9000);assert.equal(drawn(M.svg(m,1.015),99),true);
+  const pixel=M.project(m,[9000,9000]);assert.ok(pixel[0]>=0&&pixel[0]<=m.width);assert.ok(pixel[1]>=0&&pixel[1]<=m.height);assert.equal(drawn(M.svg(m,1.015),99),true);
 });
 test('列表格式、目标、时刻和静态模式冲突参数明确报错',()=>{
   for(const visibility of [[{}],[{hide:[]}],[{hide:'A'}],[{hide:[999]}],[{at:-1,hide:[7]}],[{at:9,show:[7]}],[{at:0,hied:[7]}]])assert.throws(()=>M.prepare(scene,{mode:'static',visibility}));

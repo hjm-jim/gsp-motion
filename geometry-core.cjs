@@ -107,7 +107,19 @@ function decodeLabel(payload) {
   }
 }
 
-function decodeObject(index, records) {
+function decodeNativeStyle(payload, version) {
+  // GSP4 is also used by older file revisions. Only the verified v5 layout is decoded.
+  if (version !== 5 || payload.byteLength < 18) return null;
+  const v = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const packed = v.getUint16(10, true), widthIndex = packed & 15,
+    dashIndex = (packed >>> 4) & 15, pointSizeIndex = (packed >>> 8) & 15;
+  if ((packed >>> 12) || widthIndex > 3 || dashIndex > 2 || pointSizeIndex > 3) return null;
+  return {source:'gsp-v5', packed, color:'#'+Array.from(payload.slice(12,15), b=>b.toString(16).padStart(2,'0')).join(''),
+    widthIndex, width:[.5,1,3,5][widthIndex], dash:['dotted','dashed','solid'][dashIndex],
+    pointSizeIndex, pointRadius:[1.5,2,4,6][pointSizeIndex], pointOutline:[0,1,1.25,1.5][pointSizeIndex]};
+}
+
+function decodeObject(index, records, version) {
   const headerRecord = records[0];
   const payload = headerRecord.payload;
   if (payload.byteLength < 12) {
@@ -146,6 +158,7 @@ function decodeObject(index, records) {
     branch: mapped?.branch ?? null,
     headerOffset: `0x${headerRecord.offset.toString(16)}`,
     headerU16,
+    nativeStyle: decodeNativeStyle(payload, version),
     visibilityFlags: headerU16[1],
     hidden: Boolean(headerU16[1] & 1),
     visible: !Boolean(headerU16[1] & 1),
@@ -206,11 +219,16 @@ function parseGsp(buffer, fileName) {
       if (record.tag === 2007) current = null;
     }
   }
-  const objects = groups.map((group, index) => decodeObject(index + 1, group));
+  const versionRecord = records.find(r => r.tag === 900);
+  const fileVersion = versionRecord?.payload.byteLength >= 2
+    ? new DataView(versionRecord.payload.buffer, versionRecord.payload.byteOffset).getUint16(0,true) : null;
+  const objects = groups.map((group, index) => decodeObject(index + 1, group, fileVersion));
   addDerivedGeometry(objects);
   return {
     fileName,
     magic: "GSP4",
+    fileVersion,
+    styleWarnings: objects.filter(o=>!o.nativeStyle).map(o=>`#${o.index}: 原始样式未确认，采用默认外观（文件版本 ${fileVersion ?? '未知'}）`),
     size: bytes.byteLength,
     recordCount: records.length,
     objects,
@@ -401,13 +419,17 @@ function addDerivedGeometry(objects) {
         const dx = endpoints[1][0] - endpoints[0][0];
         const dy = endpoints[1][1] - endpoints[0][1];
         const direction = name === "PerpendicularLine" ? [-dy, dx] : [dx, dy];
-        const p2 = [anchor[0] + direction[0], anchor[1] + direction[1]];
+        // Native GSP centers both defining points on the anchor (t=.5).
+        // The same infinite line with anchor as p1 looks correct, but shifts
+        // every PointOnObject parameter and corrupts its dependent geometry.
+        const p1 = [anchor[0] - direction[0]/2, anchor[1] - direction[1]/2];
+        const p2 = [anchor[0] + direction[0]/2, anchor[1] + direction[1]/2];
         object.derived = {
           anchorObject: object.dependencies[0],
           baseObject: object.dependencies[1],
-          p1: anchor,
+          p1,
           p2,
-          equation: lineEquation(anchor, p2),
+          equation: lineEquation(p1, p2),
         };
       }
     } else if (name === "IntersectionPoint" && parents.length === 2) {
@@ -546,7 +568,7 @@ function addDerivedGeometry(objects) {
   }
 }
 
-function geometryBounds(objects) {
+function geometryBounds(objects, padded = true) {
   const points = [];
   for (const object of objects) {
     const point = pointOf(object);
@@ -567,7 +589,7 @@ function geometryBounds(objects) {
   const xs = points.map((point) => point[0]);
   const ys = points.map((point) => point[1]);
   const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 100);
-  const margin = Math.max(42, span * 0.1);
+  const margin = padded ? Math.max(42, span * 0.1) : 0;
   return {
     x: Math.min(...xs) - margin,
     y: Math.min(...ys) - margin,

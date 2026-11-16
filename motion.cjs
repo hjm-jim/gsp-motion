@@ -4,8 +4,8 @@ const G = typeof module !== 'undefined' ? require('./geometry-core.cjs') : root.
 const E = typeof module !== 'undefined' ? require('./effects.cjs') : root.Effects;
 const V = typeof module !== 'undefined' ? require('./visibility.cjs') : root.Visibility;
 const L = typeof module !== 'undefined' ? require('./label-layout.cjs') : root.LabelLayout;
+const S = typeof module !== 'undefined' ? require('./styles.cjs') : root.Styles;
 const finitePoint = p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite);
-const escape = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const clone = x => JSON.parse(JSON.stringify(x));
 function resolve(objects, value) {
   const matches = objects.filter(o => String(o.index) === String(value) || o.label === String(value));
@@ -49,7 +49,7 @@ function recompute(objects) {
 }
 function prepare(scene, options = {}) {
   if (!scene || !Array.isArray(scene.objects) || !scene.objects.length) throw Error('输入必须包含非空 objects 数组');
-  const objects = order(clone(scene.objects)); recompute(objects);
+  const objects = order(clone(scene.objects)); S.validate(objects); recompute(objects);
   const mode=options.mode??'motion';
   if(!['motion','static'].includes(mode))throw Error('mode 必须为 motion 或 static');
   if(mode==='static'&&['point','from','to','turns','direction'].some(k=>options[k]!==undefined))throw Error('static 模式不使用 point/from/to/turns/direction；保持 GSP 原始几何位置');
@@ -64,7 +64,7 @@ function prepare(scene, options = {}) {
   const parentLength = ends ? Math.hypot(ends[1][0]-ends[0][0],ends[1][1]-ends[0][1]) : null;
   if (mode==='motion' && !circular && !Number.isFinite(originalParameter)) throw Error('驱动点直线约束参数无效');
   const duration = Number(options.duration ?? 8), fps = Number(options.fps ?? 30);
-  const turns = options.turns === undefined ? null : Number(options.turns), width = Number(options.width ?? 1280), height = Number(options.height ?? 720);
+  const turns = options.turns === undefined ? null : Number(options.turns), width = Number(options.width ?? 1920), height = Number(options.height ?? 1080);
   if (!(duration > 0 && duration <= 3600 && Number.isFinite(duration))) throw Error('duration 必须在 (0,3600] 秒');
   if (!(Number.isInteger(fps) && fps > 0 && fps <= 120)) throw Error('fps 必须为 1..120 的整数');
   if (turns !== null && (!Number.isFinite(turns) || turns === 0 || Math.abs(turns) > 1000)) throw Error('turns 必须为非零有限数，绝对值不大于 1000');
@@ -112,24 +112,32 @@ function prepare(scene, options = {}) {
   const all=[...visible(objects,0),...samples];
   const anchors=all.flatMap(o=>G.endpointsOf(o)??[]).map(coordinates=>({name:'Point',coordinates}));
   const arcAnchors=frames.flatMap(f=>E.extentPoints(model,f)).map(coordinates=>({name:'Point',coordinates}));
-  const b = G.geometryBounds([...all,...anchors,...arcAnchors]);
-  const aspect = (width * .88) / (height * .84);
-  const spanX = Math.max(b.width,b.height*aspect), spanY = spanX/aspect;
+  const b = G.geometryBounds([...all,...anchors,...arcAnchors],false);
+  const basePadding=Math.max(2,...objects.map(o=>{const s=S.appearance(model,o);return G.POINT_TYPES.has(o.name)?s.pointRadius+s.pointOutline/2:s.width/2;}));
+  const effectPadding=Math.max(0,...model.effects.map(e=>e.type==='point'?Math.max(...e.objects.map(id=>S.appearance(model,objects.find(o=>o.index===id)).pointRadius))+e.width:e.width/2));
+  const padding=Math.max(basePadding,effectPadding)+2,px=Math.max(width*.03,padding),py=Math.max(height*.02,padding);
+  model.viewport={x:px,y:py,width:width-2*px,height:height-2*py};
+  const aspect = model.viewport.width/model.viewport.height;
+  const spanX = Math.max(b.width,b.height*aspect,1), spanY = spanX/aspect;
   model.bounds = {x:b.x+b.width/2-spanX/2,y:b.y+b.height/2-spanY/2,width:spanX,height:spanY};
-  const pos=p=>[width*.06+(p[0]-model.bounds.x)*width*.88/model.bounds.width,height*.08+(p[1]-model.bounds.y)*width*.88/model.bounds.width];
+  const pos=p=>project(model,p);
   E.planArcs(model,frames,pos,model.bounds);
   if(model.labels)model.labelPlan=L.plan(model,frames.map(f=>({f,obstacles:labelObstacles(model,f,pos)})));
   return model;
 }
 function labelObstacles(model,f,pos){
-  const obstacles=L.geometry(f.objects,pos,model.bounds,o=>V.visible(model,f.time,o));
+  const obstacles=L.geometry(f.objects,pos,model.bounds,o=>V.visible(model,f.time,o),o=>S.appearance(model,o));
   E.layers(model,f,pos,model.bounds,obstacles.paths);
   return obstacles;
 }
 function labelLayout(model,time){
   const f=frame(model,time),b=model.bounds;
-  const pos=p=>[model.width*.06+(p[0]-b.x)*model.width*.88/b.width,model.height*.08+(p[1]-b.y)*model.width*.88/b.width];
+  const pos=p=>project(model,p);
   return model.labels?L.layout(model,f,labelObstacles(model,f,pos)):[];
+}
+function project(model,p){
+  const v=model.viewport,scale=v.width/model.bounds.width;
+  return [v.x+(p[0]-model.bounds.x)*scale,v.y+(p[1]-model.bounds.y)*scale];
 }
 function frame(model, time) {
   if (!Number.isFinite(time)) throw Error('time 必须是有限数');
@@ -169,26 +177,24 @@ function frame(model, time) {
 }
 function svg(model,time) {
   const f = frame(model,time), W=model.width,H=model.height,b=model.bounds;
-  const palette=model.background==='black'
-    ? {bg:'#000000',line:'#d9e2ed',moving:'#ffbd59',curve:'#62b7ed',point:'#8ddfeb',active:'#ffbd59'}
-    : {bg:'#ffffff',line:'#303d4a',moving:'#c75518',curve:'#286fa3',point:'#17617d',active:'#c75518'};
-  const parts=[], scale = W*.88/b.width;
-  const pos=p=>[W*.06+(p[0]-b.x)*scale,H*.08+(p[1]-b.y)*scale];
-  const line=(a,c,color='#93a6bb',id)=>{const p=pos(a),q=pos(c); return `<line data-object="${id}" x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" stroke="${color}" stroke-width="3"/>`;};
-  const text=(x,y,s,size,color,id)=>`<text data-label-object="${id}" x="${x}" y="${y}" fill="${color}" font-size="${size}" font-family="Segoe UI, Microsoft YaHei, sans-serif">${escape(s)}</text>`;
+  const palette=S.palette(model.background);
+  const parts=[], scale = model.viewport.width/b.width;
+  const pos=p=>project(model,p);
+  const line=(a,c,style,id)=>{const p=pos(a),q=pos(c); return `<line data-object="${id}" x1="${p[0]}" y1="${p[1]}" x2="${q[0]}" y2="${q[1]}" ${S.stroke(style)}/>`;};
+  const text=(x,y,s,size,color,id,font)=>`<text data-label-object="${id}" data-label-kind="${font.kind}" x="${x}" y="${y}" fill="${color}" font-size="${size}" font-family="${font.family}" font-style="${font.style}" font-weight="${font.weight}">${L.labelMarkup(s,size)}</text>`;
   const overlays=E.layers(model,f,pos,b);
   for (const o of f.objects) {
     if (!V.visible(model,f.time,o) || o.derived?.valid === false) continue;
-    const d=o.derived;
+    const d=o.derived,style=S.appearance(model,o);
     if (d?.p1 && d?.p2) {
       let ends = [d.p1,d.p2];
       if (G.INFINITE_LINE_TYPES.has(o.name)) ends=G.clipInfiniteLine(...ends,b);
       if (o.name === 'Ray') ends=G.clipRay(...ends,b);
-      if (ends) parts.push(line(...ends,o.dependencies.includes(model.driver)?palette.moving:palette.line,o.index));
+      if (ends) parts.push(line(...ends,style,o.index));
     } else if (o.name === 'Circle' && d?.center) {
-      const p=pos(d.center); parts.push(`<circle data-object="${o.index}" cx="${p[0]}" cy="${p[1]}" r="${d.radius*scale}" fill="none" stroke="${palette.curve}" stroke-width="2"/>`);
+      const p=pos(d.center); parts.push(`<circle data-object="${o.index}" cx="${p[0]}" cy="${p[1]}" r="${d.radius*scale}" fill="none" ${S.stroke(style)}/>`);
     } else if(o.name === 'ArcThroughThreePoints' && d?.valid) {
-      const a=pos(d.start),z=pos(d.end); parts.push(`<path data-object="${o.index}" d="M${a} A${d.radius*scale},${d.radius*scale} 0 ${d.largeArcFlag},${d.sweepFlag} ${z}" fill="none" stroke="${palette.curve}" stroke-width="2"/>`);
+      const a=pos(d.start),z=pos(d.end); parts.push(`<path data-object="${o.index}" d="M${a} A${d.radius*scale},${d.radius*scale} 0 ${d.largeArcFlag},${d.sweepFlag} ${z}" fill="none" ${S.stroke(style)}/>`);
     }
   }
   parts.push(...overlays.strokes);
@@ -196,16 +202,18 @@ function svg(model,time) {
   for(const o of f.objects) {
     if(!V.visible(model,f.time,o) || o.derived?.valid === false || !G.POINT_TYPES.has(o.name)) continue;
     const p=G.pointOf(o); if(!finitePoint(p)) continue;
-    const [x,y]=pos(p), active=o.index===model.driver;
-    parts.push(`<circle data-object="${o.index}" cx="${x}" cy="${y}" r="${active?8:5}" fill="${active?palette.active:palette.point}"/>`);
+    const [x,y]=pos(p),style=S.appearance(model,o);
+    parts.push(`<circle data-object="${o.index}" cx="${x}" cy="${y}" r="${style.pointRadius}" fill="${style.color}" stroke="${palette.bg}" stroke-width="${style.pointOutline}"/>`);
   }
   if(model.labels)for(const label of L.layout(model,f,labelObstacles(model,f,pos))){
-    const o=f.objects.find(o=>o.index===label.id),color=o.index===model.driver?palette.active:G.POINT_TYPES.has(o.name)?palette.point:palette.line;
-    parts.push(text(label.x+4,label.y+4+model.labelSize, label.label,model.labelSize,color,label.id));
+    const o=f.objects.find(o=>o.index===label.id),color=model.background==='white'?palette.label:o.index===model.driver?palette.active:G.POINT_TYPES.has(o.name)?palette.point:palette.line;
+    const font=L.typography(o);
+    if(label.leader){const {a,b}=label.leader;parts.push(`<line data-label-leader="${label.id}" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width="1.2" stroke-dasharray="3 3"/>`);}
+    parts.push(text(label.x+(font.kind==='circle'?2:4),label.y+2+font.ascent*model.labelSize, label.label,model.labelSize,color,label.id,font));
   }
   const body = `<rect width="${W}" height="${H}" fill="${palette.bg}"/>`+overlays.fills.join('')+parts.join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}</svg>`;
 }
-const api={prepare,frame,svg,labelLayout,order,recompute,resolve};
+const api={prepare,frame,svg,labelLayout,order,recompute,resolve,project};
 if(typeof module !== 'undefined') module.exports=api; else root.Motion=api;
 })(globalThis);

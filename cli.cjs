@@ -14,7 +14,7 @@ function usage(){console.log(`GSP motion CLI (bundled runtime; source requires N
     Automatically writes <input-stem>.info.md beside the input.
     --info-md custom/path.md overrides the automatic Markdown location.
   node cli.cjs animate <scene.gsp|scene.json> --point A --out output
-    --duration 8 --fps 30 --width 1280 --height 720
+    --duration 8 --fps 30 --width 1920 --height 1080
     --from -30 --to 30 (circle: degrees; line: signed coordinate distance)
     --direction cw|ccw (circle only) [--turns 1 (legacy full revolution)]
     --concyclic A,B,C --fixed 1 --perpendicular 6,7
@@ -53,11 +53,12 @@ function html(model){
   const effects=fs.readFileSync(path.join(__dirname,'effects.cjs'),'utf8');
   const visibility=fs.readFileSync(path.join(__dirname,'visibility.cjs'),'utf8');
   const labels=fs.readFileSync(path.join(__dirname,'label-layout.cjs'),'utf8');
+  const styles=fs.readFileSync(path.join(__dirname,'styles.cjs'),'utf8');
   const json=JSON.stringify(model).replace(/</g,'\\u003c');
   return `<!doctype html><html lang="zh-CN"><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GSP Motion Demo</title>
 <style>body{margin:0;background:#080e19;color:#d6dfed;font:16px 'Segoe UI','Microsoft YaHei',sans-serif}main{max-width:1280px;margin:24px auto;padding:0 20px}#stage svg{width:100%;height:auto;display:block;border-radius:16px}nav{display:flex;gap:16px;align-items:center;padding:22px 0}input{flex:1;accent-color:#f6b85c}button,select{background:#1e304a;color:#eef5ff;border:1px solid #3a5272;border-radius:8px;padding:10px 16px}p{color:#9eafc5;font-size:14px}</style>
 <main><div id="stage"></div><nav><button id="play">播放</button><button id="reset">重置</button><input id="seek" aria-label="动画进度" type="range" min="0" max="${model.duration}" step="0.001" value="0"><select id="speed" aria-label="播放速度"><option value="0.5">0.5×</option><option selected value="1">1×</option><option value="2">2×</option></select><button id="save">导出 SVG 帧</button></nav><p>${model.mode==='static'?'保持 GSP 原始几何位置，按指定时刻隐藏/显示对象，终态保持。':'相对 GSP 原始位置，从区间起点单向运动至终点，结束后停止，不往返、不循环。'} PNG / MP4 请通过 CLI 导出。</p></main>
-<script>${core}\n${visibility}\n${labels}\n${effects}\n${runtime}\nconst model=${json};
+<script>${core}\n${visibility}\n${labels}\n${styles}\n${effects}\n${runtime}\nconst model=${json};
 let time=0,playing=false,last=null; const stage=document.getElementById('stage'),seek=document.getElementById('seek'),play=document.getElementById('play');
 function controls(){play.disabled=time>=model.duration;play.textContent=play.disabled?'已结束':playing?'暂停':'播放';}
 function render(t){time=Math.max(0,Math.min(model.duration,t));if(time>=model.duration){playing=false;last=null;}stage.innerHTML=Motion.svg(model,time);seek.value=time;controls();return Motion.frame(model,time);}
@@ -103,7 +104,7 @@ async function main(args){
     console.log(JSON.stringify(result));return;
   }
   if(command==='inspect'){
-    console.log(JSON.stringify({file:scene.fileName||path.basename(input),infoMd:scene.infoMd,sourceSha256:scene.sourceSha256,objects:Info.describe(scene.objects)},null,2));return;
+    console.log(JSON.stringify({file:scene.fileName||path.basename(input),fileVersion:scene.fileVersion??null,styleWarnings:scene.styleWarnings??[],infoMd:scene.infoMd,sourceSha256:scene.sourceSha256,objects:Info.describe(scene.objects)},null,2));return;
   }
   const model=M.prepare(scene,options),out=path.resolve(options.out||'output');
   fs.mkdirSync(out,{recursive:true});

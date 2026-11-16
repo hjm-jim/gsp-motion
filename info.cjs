@@ -31,7 +31,7 @@ function describe(objects){
     return {index:o.index,label:o.label??null,name:o.name,typeName,description,
       dependencies:deps,originalVisible:!o.hidden&&o.visible!==false,valid,reason:o.derived?.reason??null,circleDriver,lineDriver,
       coordinates:G.pointOf(o),constraintParameters:o.constraintParameters??null,
-      geometry:o.derived??null,fileType:o.fileType??null};
+      geometry:o.derived??null,fileType:o.fileType??null,nativeStyle:o.nativeStyle??null};
   });
 }
 function sceneObjects(objects){return Array.isArray(objects);}
@@ -50,6 +50,7 @@ function markdown(scene,input,sha256){
     '- “原始标签”来自 GSP；“构造说明”是程序依据依赖生成的说明，不能作为 CLI 标签直接引用。',
     '- 无标签对象没有可用的字符串标签。例如说明为“线段 A—B”的对象仍应使用其编号，不要假设它的原始标签是 AB。',
     '- 重名标签必须使用编号；原图未命名的点不会自动命名为 O 等标签。',
+    '- 方括号名称在画面中渲染为下标（A[12] → A₁₂、A[n] → Aₙ）；CLI 仍用本表原始标签 A[12] / A[n] 或对象编号引用，不改写成 Unicode 下标名称。',
     '- 原始可见性不限制显式 show，但无定义或未知构造不能靠 show 变成有效几何。',
     '- 所有坐标与参数均为初始解析结果，不能从本文件推断自动定理证明或未编码的几何关系。', '',
     '## 原始标签到编号', '',
@@ -60,9 +61,12 @@ function markdown(scene,input,sha256){
   for(const [label,ids] of labels)lines.push(`| ${code(JSON.stringify(label))} | ${ids.map(id=>'#'+id).join('、')} | ${ids.length===1?'是':'否；配置使用编号'} |`);
   lines.push('','## 全部对象与构造关系','','| 编号 / 推荐 CLI 引用 | 原始标签 | 类型 | 构造说明（不是标签） | 直接父依赖 | 原始可见 | 初始有效 | 可驱动 |','|---|---|---|---|---|---|---|---|');
   for(const o of rows)lines.push(`| ${code(o.index)} | ${o.label===null||o.label===''?'—':code(JSON.stringify(o.label))} | ${escape(o.typeName)} / ${code(o.name)} | ${escape(o.description)} | ${o.dependencies.map(id=>'#'+id).join('、')||'—'} | ${o.originalVisible?'是':'否'} | ${o.valid?'是':'否'} | ${o.circleDriver?'圆周':o.lineDriver?'沿直线型对象':'否'} |`);
+  lines.push('','## GSP 原始外观','','白底继承下列原色，黑底使用默认配色；虚实线、线宽与点大小在两种背景均继承。宽度和半径为输出像素，不随镜头缩放。名称颜色不从点的颜色推断。未知版本/无已确认样式的 JSON 采用默认外观。','','| 编号 | 原色 RGB | 线型 | 线宽 px | 点半径 px |','|---|---|---|---|---|');
+  for(const o of rows){const s=o.nativeStyle;lines.push(`| #${o.index} | ${s?code(s.color):'未确认 / 默认'} | ${s&&!G.POINT_TYPES.has(o.name)?code(s.dash):'—'} | ${s&&!G.POINT_TYPES.has(o.name)?s.width:'—'} | ${s&&G.POINT_TYPES.has(o.name)?s.pointRadius:'—'} |`);}
+  if(scene.styleWarnings?.length)lines.push('',...scene.styleWarnings.map(s=>'- '+escape(s)));
   lines.push('','## 初始几何与约束参数','', '以下编号、坐标和方向参数可用于进一步定位对象；几何对象上的点的可驱动性仍须满足 CLI 的参数校验。','');
   for(const o of rows){
-    const data={index:o.index,label:o.label,type:o.name,dependencies:o.dependencies,fileType:o.fileType,coordinates:o.coordinates,constraintParameters:o.constraintParameters,geometry:o.geometry};
+    const data={index:o.index,label:o.label,type:o.name,dependencies:o.dependencies,fileType:o.fileType,coordinates:o.coordinates,constraintParameters:o.constraintParameters,geometry:o.geometry,nativeStyle:o.nativeStyle};
     // 转义反引号与 HTML 起始符，防止标签关闭 JSON fenced block。
     const json=JSON.stringify(data,null,2).replace(/`/g,'\\u0060').replace(/</g,'\\u003c');
     lines.push(`### #${o.index} / ${o.name.replace(/[^\w().-]/g,'_')}`,'','```json',json,'```','');
